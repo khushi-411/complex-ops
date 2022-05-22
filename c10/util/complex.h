@@ -157,4 +157,64 @@ constexpr complex<float>::complex(const complex<double> &other): complex_common(
 constexpr complex<double>::complex(const complex<c10::Half> &other): complex_common(other.real(), other.imag()) {}
 constexpr complex<double>::complex(const complex<float> &other): complex_common(other.real(), other.imag()) {}
 
-} // c10
+} // namespace c10
+
+template<typename T>
+constexpr c10::complex<T> operator+(const c10::complex<T>& val) {
+  return val;
+}
+
+template<typename T>
+constexpr c10::complex<T> operator+(const c10::complex<T>& lhs, const c10::complex<T>& rhs) {
+  c10::complex<T> result = lhs;
+  return result += rhs;
+}
+
+template<typename T>
+constexpr c10::complex<T> operator+(const c10::complex<T>& lhs, const T& rhs) {
+  c10::complex<T> result = lhs;
+  return result += rhs;
+}
+
+template<typename T>
+constexpr c10::complex<T> operator+(const T& lhs, const c10::complex<T>& rhs) {
+  c10::complex<T> result = rhs;
+  return result += lhs;
+}
+
+template<typename T>
+constexpr c10::complex<T> operator-(const c10::complex<T>& val) {
+  return c10::complex<T>(-val.real(), -val.imag());
+}
+
+template<typename T>
+constexpr c10::complex<T> operator-(const c10::complex<T>& lhs, const c10::complex<T>& rhs) {
+  c10::complex<T> result = lhs;
+  return result -= rhs;
+}
+
+template<typename T>
+constexpr c10::complex<T> operator-(const c10::complex<T>& lhs, const T& rhs) {
+  c10::complex<T> result = lhs;
+  return result -= rhs;
+}
+
+template<typename T>
+constexpr c10::complex<T> operator-(const T& lhs, const c10::complex<T>& rhs) {
+  c10::complex<T> result = -rhs;
+  return result += lhs;
+}
+
+namespace std {
+
+template<typename T>
+constexpr T real(const c10::complex<T>& z) {
+  return z.real();
+}
+
+template<typename T>
+constexpr T imag(const c10::complex<T>& z) {
+  return z.imag();
+}
+
+} // namespace std
