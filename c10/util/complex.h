@@ -3,8 +3,6 @@
 #include <complex>
 #include <iostream>
 
-#include <thrust/complex.h>
-
 namespace c10 {
 
 using Half = short;
@@ -12,126 +10,171 @@ using Half = short;
 #define C10_HOST_DEVICE
 
 template<typename T>
-struct complex;
+struct alignas(sizeof(T) * 2) complex {
 
-template<typename T>
-struct alignas(sizeof(T) * 2) complex_common {
-  T storage[2];
+  // https://stackoverflow.com/questions/44571362
+  using value_type = T;
 
-  constexpr complex_common(): storage{T(), T()} {}
-  constexpr complex_common(const T& re, const T& im = T()): storage{re, im} {}
+  T real_ = T(0); // TODO: Use {0}?
+  T imag_ = T(0);
+
+  // constructor declaration
+  constexpr complex() = default;
+  constexpr complex(const T& re, const T& im = T())
+      : real_(re), imag_(im) {}
+  // Using real and imag from std::complex
+  // TODO: Why do we write explicit keyword?
   template<typename U>
-  constexpr complex_common(const std::complex<U> &other): complex_common(other.real(), other.imag()) {}
-  C10_HOST_DEVICE complex_common(const thrust::complex<U> &other): complex_common(other.real(), other.imag()) {}
+  explicit constexpr complex(const std::complex<U> &other)
+      : complex_common(other.real(), other.imag()) {}
 
-  constexpr complex<T> &operator =((T re) {
-    storage[0] = re;
-    return static_cast<complex<T> &>(*this);
+  // Casting constructor
+  // TODO: Meaning of U = T
+  // I don't think we need to define using C10_HOST_DEVICE
+  template <typename U = T>
+  C10_HOST_DEVICE constexpr complex(
+      const std::enable_if_t<std::is_same<U, float>::value, complex<double>>&
+          other)
+      : real_(other.real_), imag_(other.imag_) {}
+  template <typename U = T>
+  C10_HOST_DEVICE constexpr complex(
+      const std::enable_if_t<std::is_same<U, double>::value, complex<float>>&
+          other)
+      : real_(other.real_), imag_(other.imag_) {}
+
+  // TODO: Is this a template template parameter?
+  // TODO: Why not return static_cast<complex<T> &>(*this)?
+  constexpr complex<T> &operator=(T re) {
+    real_ = re;
+    imag_ = 0;
+    return *this;
   }
 
-  constexpr complex<T> &operator +=(T re) {
-    storage[0] += re;
-    return static_cast<complex<T> &>(*this);
+  constexpr complex<T> &operator+=(T re) {
+    real_ += re;
+    return *this;
   }
 
-  constexpr complex<T> &operator -=(T re) {
-    storage[0] -= re;
-    return static_cast<complex<T> &>(*this);
+  constexpr complex<T> &operator-=(T re) {
+    real_ -= re;
+    return *this;
   }
 
-  constexpr complex<T> &operator *=(T re) {
-    storage[0] *= re;
-    storage[1] *= re;
-    return static_cast<complex<T> &>(*this);
+  constexpr complex<T> &operator*=(T re) {
+    real_ *= re;
+    imag_ *= re;
+    return *this;
   }
 
-  constexpr complex<T> &operator /=(T re) {
-    storgae[0] /= re;
-    storage[1] /= re;
-    return static_cast<complex<T> &>(*this);
-  }
-
-  template<typename U>
-  constexpr complex<T> &operator =(const complex<U> &rhs) {
-    storage[0] = rhs.real();
-    storage[1] = rhs.imag();
-    return static_cast<complex<T> &>(*this);
-  }
-
-  template<typename U>
-  constexpr complex<T> &operator +=(const complex<U> &rhs) {
-    storage[0] += rhs.real();
-    storage[1] += rhs.imag();
-    return static_cast<complex<T> &>(*this);
-  }
-
-  template<typename U>
-  constexpr complex<T> &operator -=(const complex<U> &rhs) {
-    storage[0] -= rhs.real();
-    storage[1] -= rhs.imag();
-    return static_cast<complex<T> &>(*this);
+  constexpr complex<T> &operator/=(T re) {
+    real_ /= re;
+    imag_ /= re;
+    return *this;
   }
 
   template<typename U>
-  constexpr complex<T> &operator *=(const complex<U> &rhs) {
+  constexpr complex<T> &operator=(const complex<U> &rhs) {
+    real_ = rhs.real();
+    imag_ = rhs.imag();
+    return *this;
+  }
+
+  template<typename U>
+  constexpr complex<T> &operator+=(const complex<U> &rhs) {
+    real_ += rhs.real();
+    imag_ += rhs.imag();
+    return *this;
+  }
+
+  template<typename U>
+  constexpr complex<T> &operator-=(const complex<U> &rhs) {
+    real_ -= rhs.real();
+    imag_ -= rhs.imag();
+    return *this;
+  }
+
+  template<typename U>
+  constexpr complex<T> &operator*=(const complex<U> &rhs) {
     // (a + bi) * (c + di) = (a*c - b*d) + (a*d + b*c)i
-    T a = storage[0];
-    T b = storage[1];
+    T a = real_;
+    T b = imag_;
     U c = rhs.real();
     U d = rhs.imag();
-    storage[0] = a * c - b * d;
-    storage[1] = a * d + b * c;
-    return static_cast<complex<T> &>(*this);
+    real_ = a * c - b * d;
+    imag_ = a * d + b * c;
+    return *this;
   }
 
+  // TODO: Why use <typename U>?
   template<typename U>
-  constexpr complex<T> &operator /=(const complex<U> &rhs) {
+  constexpr complex<T> &operator/=(const complex<U> &rhs) {
     // (a + bi) / (c + di) = (ac + bd)/(c^2 + d^2) + (bc - ad)/(c^2 + d^2) i
-    T a = storage[0];
-    T b = storage[1];
+    T a = real_;
+    T b = imag_;
     U c = rhs.real();
     U d = rhs.imag();
     auto denominator = c * c + d * d;
-    storage[0] = (a * c + b * d) / denominator;
-    storage[1] = (b * c - a * d) / denominator;
-    return static_cast<complex<T> &>(*this);
+    real_ = (a * c + b * d) / denominator;
+    imag_ = (b * c - a * d) / denominator;
+    return *this;
   }
 
   template<typename U>
-  constexpr complex<T> &operator =(const std::complex<U> &rhs) {
-    storage[0] = rhs.real();
-    storage[1] = rhs.imag();
-    return static_cast<complex<T> &>(*this);
+  constexpr complex<T> &operator=(const std::complex<U> &rhs) {
+    real_ = rhs.real();
+    imag_ = rhs.imag();
+    return *this;
   }
 
+  // TODO
   template<typename U>
   explicit constexpr operator std::complex<U>() const {
     return std::complex<U>(std::complex<T>(real(), imag()));
   }
 
   constexpr T real() const {
-    return storage[0];
+    return real_;
   }
 
   constexpr void real(T value) {
-    storage[0] = value;
+    real_ = value;
   }
 
   constexpr T imag() const {
-    return storage[1];
+    return imag_;
   }
 
   constexpr void real(T value) {
-    storage[1] = value;
+    imag_ = value;
   }
 };
 
-template<>
-struct alignas(4) complex<c10::Half>: public complex_common<c10::Half> {
-  using complex_common<c10::Half>::complex_common;
-  constexpr complex(): complex_common() {};
-  explicit constexpr complex(const complex<float> &other);
-  explicit constexpr complex(const complex<double> &other);
+// TODO: difference between template<> and template <typename T>?
+template <>
+struct alignas(4) complex<c10::Half> {
+  Half real_;
+  Half imag_;
+
+  // Constructors
+  complex() = default;
+
+  // Half Constructor is not a constexpr
+  C10_HOST_DEVICE explicit inline complex(const Half& real, const Half& imag)
+      : real_(real), imag_(imag) {}
+  C10_HOST_DEVICE inline complex(const c10::complex<float> &other)
+      : real_(other.real()), imag_(other.imag()) {}
+
+  // conversion operator
+  inline C10_HOST_DEVICE operator c10::complex<float>() const {
+      return {real_, imag_};
+  }
+
+  constexpr C10_HOST_DEVICE Half real() const {
+    return real_;
+  }
+  constexpr C10_HOST_DEVICE Half imag() const {
+    return imag_;
+  }
 };
 
 template<>
@@ -157,62 +200,100 @@ constexpr complex<float>::complex(const complex<double> &other): complex_common(
 constexpr complex<double>::complex(const complex<c10::Half> &other): complex_common(other.real(), other.imag()) {}
 constexpr complex<double>::complex(const complex<float> &other): complex_common(other.real(), other.imag()) {}
 
+// TODO: Add ostream and istream
+
 } // namespace c10
 
-template<typename T>
+template <typename T>
 constexpr c10::complex<T> operator+(const c10::complex<T>& val) {
   return val;
 }
 
-template<typename T>
+template <typename T>
 constexpr c10::complex<T> operator+(const c10::complex<T>& lhs, const c10::complex<T>& rhs) {
   c10::complex<T> result = lhs;
   return result += rhs;
 }
 
-template<typename T>
+template <typename T>
 constexpr c10::complex<T> operator+(const c10::complex<T>& lhs, const T& rhs) {
   c10::complex<T> result = lhs;
   return result += rhs;
 }
 
-template<typename T>
+template <typename T>
 constexpr c10::complex<T> operator+(const T& lhs, const c10::complex<T>& rhs) {
   c10::complex<T> result = rhs;
   return result += lhs;
 }
 
-template<typename T>
+template <typename T>
 constexpr c10::complex<T> operator-(const c10::complex<T>& val) {
   return c10::complex<T>(-val.real(), -val.imag());
 }
 
-template<typename T>
+template <typename T>
 constexpr c10::complex<T> operator-(const c10::complex<T>& lhs, const c10::complex<T>& rhs) {
   c10::complex<T> result = lhs;
   return result -= rhs;
 }
 
-template<typename T>
+template <typename T>
 constexpr c10::complex<T> operator-(const c10::complex<T>& lhs, const T& rhs) {
   c10::complex<T> result = lhs;
   return result -= rhs;
 }
 
-template<typename T>
+template <typename T>
 constexpr c10::complex<T> operator-(const T& lhs, const c10::complex<T>& rhs) {
   c10::complex<T> result = -rhs;
   return result += lhs;
 }
 
+template <typename T>
+constexpr c10::complex<T> operator*(const complex<T>& lhs, const complex<T>& rhs) {
+  c10::complex<T> result = lhs;
+  return result *= rhs;
+}
+
+template <typename T>
+constexpr c10::complex<T> operator*(const complex<T>& lhs, const T& rhs) {
+  c10::complex<T> result = rhs;
+  return result *= lhs;
+}
+
+template <typename T>
+constexpr c10::complex<T> operator*(const T& lhs, complex<T>& rhs) {
+  c10::complex<T> result = lhs;
+  return result *= rhs;
+}
+
+template <typename T>
+constexpr c10::complex<T> operator/(const c10::complex<T>& lhs, const c10::complex<T>& rhs) {
+  c10::complex<T> result = lhs;
+  return result /= rhs;
+}
+
+template <typename T>
+constexpr c10::complex<T> operator/(const c10::complex<T>& lhs, const T& rhs) {
+  c10::complex<T> result = lhs;
+  return result /= rhs;
+}
+
+template <typename T>
+constexpr c10::complex<T> operator/(const T& lhs, const c10::complex<T>& rhs) {
+  c10::complex<T> result(lhs, T());
+  return result /= rhs;
+}
+
 namespace std {
 
-template<typename T>
+template <typename T>
 constexpr T real(const c10::complex<T>& z) {
   return z.real();
 }
 
-template<typename T>
+template <typename T>
 constexpr T imag(const c10::complex<T>& z) {
   return z.imag();
 }
