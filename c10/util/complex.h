@@ -3,13 +3,13 @@
 #include <complex>
 #include <iostream>
 
+
 namespace c10 {
 
 using Half = short;
 
 #define C10_HOST_DEVICE
 
-template<typename T>
 struct alignas(sizeof(T) * 2) complex {
 
   // https://stackoverflow.com/questions/44571362
@@ -119,7 +119,7 @@ struct alignas(sizeof(T) * 2) complex {
     return *this;
   }
 
-  template<typename U>
+  template <typename U>
   constexpr complex<T> &operator=(const std::complex<U> &rhs) {
     real_ = rhs.real();
     imag_ = rhs.imag();
@@ -127,7 +127,7 @@ struct alignas(sizeof(T) * 2) complex {
   }
 
   // TODO
-  template<typename U>
+  template <typename U>
   explicit constexpr operator std::complex<U>() const {
     return std::complex<U>(std::complex<T>(real(), imag()));
   }
@@ -199,6 +199,7 @@ constexpr complex<float>::complex(const complex<c10::Half> &other): complex_comm
 constexpr complex<float>::complex(const complex<double> &other): complex_common(other.real(), other.imag()) {}
 constexpr complex<double>::complex(const complex<c10::Half> &other): complex_common(other.real(), other.imag()) {}
 constexpr complex<double>::complex(const complex<float> &other): complex_common(other.real(), other.imag()) {}
+
 
 // TODO: Add ostream and istream
 
