@@ -151,7 +151,7 @@ struct alignas(sizeof(T) * 2) complex {
 
 // TODO: difference between template<> and template <typename T>?
 template <>
-struct alignas(4) complex<c10::Half> {
+struct alignas(4) complex<Half> {
   Half real_;
   Half imag_;
 
@@ -175,10 +175,39 @@ struct alignas(4) complex<c10::Half> {
   constexpr C10_HOST_DEVICE Half imag() const {
     return imag_;
   }
+
+  complex<Half>& operator+=(const complex<Half>& other) {
+    real_ = static_cast<float>(real_) + static_cast<float>(other.real_);
+    imag_ = static_cast<float>(imag_) + static_cast<float?(other.imag_);
+    return *this;
+  }
+
+  complex<Half>& operator-=(const complex<Half>& other) {
+    real_ = static_cast<float>(real_) - static_cast<float>(other.real_);
+    imag_ = static_cast<float>(imag_) - static_cast<float>(other.imag_);
+    return *this;
+  }
+
+  complex<Half>& operator*=(const complex<Half>& other) {
+    auto a = static_cast<float>(real_);
+    auto b = static_cast<float>(imag_);
+    auto c = static_cast<float>(other.real());
+    auto d = static_cast<float>(other.imag());
+    real_ = a * c - b * d;
+    imag_ = a * d + b * c;
+    return *this;
+  }
 };
 
 template<>
-struct alignas(8) complex<float>: public complex_common<float> {
+struct alignas(8) complex<float> {
+  Half real_;
+  Half imag_;
+
+  // Constructors
+  complex() = default;
+
+
   using complex_common<float>::complex_common;
   constexpr complex(): complex_common() {};
   constexpr complex(const complex<c10::Half> &other);
