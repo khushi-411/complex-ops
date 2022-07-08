@@ -1,0 +1,22 @@
+name: Code Style
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  Clang-Format:
+    runs-on:
+      ubuntu-20.04
+
+  steps:
+      - uses: actions/checkout@v2
+
+      - name: Install clang-format
+        shell: bash
+        run: |
+          bash scripts/utils/install_clang_format_ubuntu2004.sh
